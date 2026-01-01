@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
     }
 
     const doc = documents.get(documentId)!;
-    doc.users.set(socket.id, currentUser);
+    doc.users.set(socket.id, currentUser!);
 
     // Send current document state to the joining user
     socket.emit("document-state", { content: doc.content });

@@ -8,6 +8,7 @@
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:socket\"",
     "build": "next build",
     "start": "next start",
+    "start:socket": "tsx server/socket-server.ts",
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
