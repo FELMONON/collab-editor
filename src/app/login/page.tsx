@@ -1,7 +1,9 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Github } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Github, Loader2, Mail } from "lucide-react";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -27,9 +29,70 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      if (isLogin) {
+        // Sign in
+        const result = await signIn("credentials", {
+          email: formData.email,
+          password: formData.password,
+          redirect: false,
+        });
+
+        if (result?.error) {
+          setError("Invalid email or password");
+        } else {
+          router.push("/documents");
+        }
+      } else {
+        // Register
+        const res = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          setError(data.error || "Registration failed");
+        } else {
+          // Auto sign in after registration
+          const result = await signIn("credentials", {
+            email: formData.email,
+            password: formData.password,
+            redirect: false,
+          });
+
+          if (result?.ok) {
+            router.push("/documents");
+          }
+        }
+      }
+    } catch (err) {
+      setError("Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full space-y-8 p-8">
+      <div className="max-w-md w-full space-y-6 p-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900">Collab Editor</h1>
           <p className="mt-2 text-gray-600">
@@ -37,7 +100,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="mt-8 space-y-3">
+        {/* OAuth Buttons */}
+        <div className="space-y-3">
           <button
             onClick={() => signIn("google", { callbackUrl: "/documents" })}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-50 transition-colors"
@@ -55,21 +119,98 @@ export default function LoginPage() {
           </button>
         </div>
 
+        {/* Divider */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-200" />
           </div>
           <div className="relative flex justify-center text-sm">
             <span className="px-2 bg-gray-50 text-gray-500">
-              No account needed - just sign in
+              or continue with email
             </span>
           </div>
         </div>
 
-        <p className="text-center text-sm text-gray-500">
-          Sign in to create and collaborate on documents in real-time.
-          <br />
-          Your account is created automatically on first sign-in.
+        {/* Email/Password Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                placeholder="John Doe"
+              />
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              placeholder="••••••••"
+              minLength={6}
+            />
+          </div>
+
+          {error && (
+            <p className="text-red-500 text-sm">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Mail className="w-5 h-5" />
+            )}
+            {isLogin ? "Sign In" : "Create Account"}
+          </button>
+        </form>
+
+        {/* Toggle Login/Register */}
+        <p className="text-center text-sm text-gray-600">
+          {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError("");
+            }}
+            className="font-medium text-black hover:underline"
+          >
+            {isLogin ? "Sign up" : "Sign in"}
+          </button>
         </p>
       </div>
     </div>
