@@ -1,9 +1,9 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mail, ArrowLeft, FileText, Sparkles, Shield, Zap } from "lucide-react";
+import { Mail, ArrowLeft, FileText, Sparkles, Shield, Zap, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button, OAuthButton } from "@/components/ui/button";
 import { Input, PasswordStrength } from "@/components/ui/input";
@@ -13,7 +13,23 @@ import { useToast } from "@/components/ui/toast";
 // Email validation regex
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function LoginLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+    </div>
+  );
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoading />}>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToast();
