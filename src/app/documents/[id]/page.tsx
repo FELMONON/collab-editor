@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { ArrowLeft, Loader2, Users, Check, Cloud, Wifi, WifiOff } from "lucide-react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { useSocket } from "@/lib/socket/use-socket";
+import { RemoteCursors } from "@/components/editor/remote-cursors";
 
 interface Document {
   id: string;
@@ -19,6 +20,7 @@ export default function DocumentPage() {
   const router = useRouter();
   const params = useParams();
   const documentId = params.id as string;
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ export default function DocumentPage() {
   }), [session?.user?.id, session?.user?.name]);
 
   // Socket connection for real-time collaboration
-  const { connected, users, sendUpdate } = useSocket({
+  const { connected, users, remoteCursors, sendUpdate, sendCursorPosition } = useSocket({
     documentId,
     user: socketUser,
     onDocumentUpdate: useCallback((newContent: string) => {
@@ -45,6 +47,35 @@ export default function DocumentPage() {
       }
     }, []),
   });
+
+  // Track mouse movement and send cursor position
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (editorContainerRef.current) {
+        const rect = editorContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Only send if mouse is within the editor container
+        if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
+          sendCursorPosition(x, y);
+        }
+      }
+    };
+
+    // Throttle mouse move events
+    let lastSent = 0;
+    const throttledMouseMove = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastSent > 50) { // Send at most every 50ms
+        lastSent = now;
+        handleMouseMove(e);
+      }
+    };
+
+    window.addEventListener("mousemove", throttledMouseMove);
+    return () => window.removeEventListener("mousemove", throttledMouseMove);
+  }, [sendCursorPosition]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -198,19 +229,24 @@ export default function DocumentPage() {
             </div>
 
             {/* User avatar */}
-            {session?.user?.image && (
+            {session?.user?.image ? (
               <img
                 src={session.user.image}
                 alt=""
                 className="w-8 h-8 rounded-full ring-2 ring-blue-500"
               />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium ring-2 ring-blue-300">
+                {session?.user?.name?.charAt(0).toUpperCase() || "?"}
+              </div>
             )}
           </div>
         </div>
       </header>
 
-      {/* Editor */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      {/* Editor with cursor overlay */}
+      <main className="max-w-4xl mx-auto px-4 py-8 relative" ref={editorContainerRef}>
+        <RemoteCursors cursors={remoteCursors} containerRef={editorContainerRef} />
         <TiptapEditor content={content} onUpdate={handleContentUpdate} />
       </main>
     </div>

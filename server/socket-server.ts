@@ -12,15 +12,15 @@ const io = new Server(httpServer, {
 // Store document states and connected users
 const documents = new Map<string, {
   content: string;
-  users: Map<string, { id: string; name: string; color: string; cursor?: { from: number; to: number } }>;
+  users: Map<string, { id: string; name: string; color: string }>;
 }>();
 
 // Generate random color for user cursor
 const getRandomColor = () => {
   const colors = [
-    "#f87171", "#fb923c", "#fbbf24", "#a3e635",
-    "#34d399", "#22d3d8", "#60a5fa", "#a78bfa",
-    "#f472b6", "#fb7185",
+    "#ef4444", "#f97316", "#eab308", "#22c55e",
+    "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
+    "#06b6d4", "#6366f1",
   ];
   return colors[Math.floor(Math.random() * colors.length)];
 };
@@ -67,25 +67,22 @@ io.on("connection", (socket) => {
       socket.to(documentId).emit("document-updated", {
         content,
         version,
-        userId: socket.id,
+        oderId: socket.id,
       });
     }
   });
 
-  // Handle cursor position updates
-  socket.on("cursor-update", ({ documentId, cursor }) => {
-    const doc = documents.get(documentId);
-    if (doc && currentUser) {
-      const user = doc.users.get(socket.id);
-      if (user) {
-        user.cursor = cursor;
-        socket.to(documentId).emit("cursor-updated", {
-          id: socket.id,
-          name: user.name,
-          color: user.color,
-          cursor,
-        });
-      }
+  // Handle mouse cursor position updates
+  socket.on("cursor-move", ({ documentId, x, y }) => {
+    if (currentUser) {
+      // Broadcast cursor position to all other users in the document
+      socket.to(documentId).emit("cursor-moved", {
+        id: socket.id,
+        name: currentUser.name,
+        color: currentUser.color,
+        x,
+        y,
+      });
     }
   });
 
@@ -98,20 +95,22 @@ io.on("connection", (socket) => {
       if (doc) {
         doc.users.delete(socket.id);
 
+        // Notify others that this user left
+        io.to(currentDocId).emit("user-left", { oderId: socket.id });
+
         // Broadcast updated user list
         io.to(currentDocId).emit("users-updated", {
           users: Array.from(doc.users.values()),
         });
 
-        // Clean up empty documents
+        // Clean up empty documents after delay
         if (doc.users.size === 0) {
-          // Keep document for a while before cleaning up
           setTimeout(() => {
             const d = documents.get(currentDocId!);
             if (d && d.users.size === 0) {
               documents.delete(currentDocId!);
             }
-          }, 60000); // Clean up after 1 minute of no users
+          }, 60000);
         }
       }
     }

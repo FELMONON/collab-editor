@@ -7,25 +7,31 @@ interface User {
   id: string;
   name: string;
   color: string;
-  cursor?: { from: number; to: number };
+}
+
+interface RemoteCursor {
+  id: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
 }
 
 interface UseSocketProps {
   documentId: string;
   user: { id: string; name: string };
   onDocumentUpdate?: (content: string) => void;
-  onCursorUpdate?: (cursor: { id: string; name: string; color: string; cursor: { from: number; to: number } }) => void;
 }
 
 export function useSocket({
   documentId,
   user,
   onDocumentUpdate,
-  onCursorUpdate,
 }: UseSocketProps) {
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
 
   useEffect(() => {
     // Connect to socket server
@@ -64,17 +70,28 @@ export function useSocket({
       setUsers(updatedUsers);
     });
 
-    // Handle cursor updates
-    socket.on("cursor-updated", (data) => {
-      if (onCursorUpdate) {
-        onCursorUpdate(data);
-      }
+    // Handle cursor position updates from other users
+    socket.on("cursor-moved", (data: RemoteCursor) => {
+      setRemoteCursors((prev) => {
+        const existing = prev.findIndex((c) => c.id === data.id);
+        if (existing >= 0) {
+          const updated = [...prev];
+          updated[existing] = data;
+          return updated;
+        }
+        return [...prev, data];
+      });
+    });
+
+    // Handle user leaving - remove their cursor
+    socket.on("user-left", ({ oderId }) => {
+      setRemoteCursors((prev) => prev.filter((c) => c.id !== oderId));
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [documentId, user, onDocumentUpdate, onCursorUpdate]);
+  }, [documentId, user, onDocumentUpdate]);
 
   const sendUpdate = useCallback((content: string) => {
     if (socketRef.current?.connected) {
@@ -86,16 +103,17 @@ export function useSocket({
     }
   }, [documentId]);
 
-  const sendCursorUpdate = useCallback((cursor: { from: number; to: number }) => {
+  const sendCursorPosition = useCallback((x: number, y: number) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit("cursor-update", { documentId, cursor });
+      socketRef.current.emit("cursor-move", { documentId, x, y });
     }
   }, [documentId]);
 
   return {
     connected,
     users,
+    remoteCursors,
     sendUpdate,
-    sendCursorUpdate,
+    sendCursorPosition,
   };
 }
