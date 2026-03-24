@@ -2,7 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import {
   Bold,
   Italic,
@@ -22,6 +22,27 @@ interface TiptapEditorProps {
   content: string;
   onUpdate: (content: string) => void;
   editable?: boolean;
+}
+
+function MenuButton({
+  onClick,
+  isActive,
+  children,
+}: {
+  onClick: () => void;
+  isActive?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`p-2 rounded hover:bg-gray-100 ${
+        isActive ? "bg-gray-100 text-black" : "text-gray-600"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function TiptapEditor({
@@ -50,28 +71,6 @@ export function TiptapEditor({
       editor.commands.setContent(content || "<p></p>");
     }
   }, [content, editor]);
-
-  const MenuButton = useCallback(
-    ({
-      onClick,
-      isActive,
-      children,
-    }: {
-      onClick: () => void;
-      isActive?: boolean;
-      children: React.ReactNode;
-    }) => (
-      <button
-        onClick={onClick}
-        className={`p-2 rounded hover:bg-gray-100 ${
-          isActive ? "bg-gray-100 text-black" : "text-gray-600"
-        }`}
-      >
-        {children}
-      </button>
-    ),
-    []
-  );
 
   if (!editor) {
     return null;

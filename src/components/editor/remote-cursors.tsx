@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 interface Cursor {
   id: string;
   name: string;
@@ -12,23 +10,9 @@ interface Cursor {
 
 interface RemoteCursorsProps {
   cursors: Cursor[];
-  containerRef: React.RefObject<HTMLElement | null>;
 }
 
-export function RemoteCursors({ cursors, containerRef }: RemoteCursorsProps) {
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
-
-  useEffect(() => {
-    // Update positions when cursors change
-    const newPositions: Record<string, { x: number; y: number }> = {};
-    cursors.forEach((cursor) => {
-      newPositions[cursor.id] = { x: cursor.x, y: cursor.y };
-    });
-    setPositions(newPositions);
-  }, [cursors]);
-
-  if (!containerRef.current) return null;
-
+export function RemoteCursors({ cursors }: RemoteCursorsProps) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {cursors.map((cursor) => (

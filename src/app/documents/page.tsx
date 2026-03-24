@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useEffectEvent } from "react";
 import {
   Plus,
   FileText,
@@ -47,13 +47,7 @@ export default function DocumentsPage() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    if (session?.user) {
-      fetchDocuments();
-    }
-  }, [session]);
-
-  const fetchDocuments = async () => {
+  const fetchDocuments = useEffectEvent(async () => {
     try {
       const res = await fetch("/api/documents");
       if (res.ok) {
@@ -65,7 +59,13 @@ export default function DocumentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  });
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchDocuments();
+    }
+  }, [session?.user]);
 
   const createDocument = async () => {
     setCreating(true);

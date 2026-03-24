@@ -1,21 +1,39 @@
 # Collab Editor
 
-A real-time collaborative document editor built with modern web technologies. Multiple users can edit the same document simultaneously with live cursor tracking and instant synchronization.
+Real-time collaborative document editor with shared document rooms, presence, remote cursors, autosave, and PostgreSQL persistence.
+
+**[Live demo](https://collab-editor-sand.vercel.app)**
+
+## What Is Live Today
+
+- document list and creation flow in [`src/app/documents/page.tsx`](src/app/documents/page.tsx) and [`src/app/api/documents/route.ts`](src/app/api/documents/route.ts)
+- collaborative editing room in [`src/app/documents/[id]/page.tsx`](src/app/documents/%5Bid%5D/page.tsx)
+- Socket.io events for `join-document`, `document-update`, and `cursor-move` in [`server/socket-server.ts`](server/socket-server.ts)
+- autosave from the editor page into `PATCH /api/documents/[id]`
+- auth through credentials, GitHub, and Google providers in [`src/lib/auth.ts`](src/lib/auth.ts)
+- document ownership, shares, and versions in [`prisma/schema.prisma`](prisma/schema.prisma)
 
 ## Features
 
-- **Real-Time Collaboration** - See changes from collaborators instantly with WebSocket-based sync
-- **Rich Text Editing** - Full-featured editor with formatting, lists, headings, and more
-- **User Presence** - See who's currently viewing and editing the document
-- **Auto-Save** - Changes are automatically saved to the database
-- **GitHub Authentication** - Secure sign-in with OAuth
-- **Document Management** - Create, edit, and organize your documents
+- **Real-Time Collaboration** - WebSocket-based room sync between connected clients
+- **Rich Text Editing** - Tiptap editor with formatting, headings, lists, quotes, undo, and redo
+- **Presence And Cursors** - Active-user badges and remote cursor overlays
+- **Auto-Save** - Debounced persistence to PostgreSQL through the Next.js API
+- **Multi-Provider Auth** - Credentials, GitHub, and Google sign-in
+- **Document Management** - Create, edit, delete, and revisit saved documents
+
+## Current Sync Model
+
+- Edits are broadcast through Socket.io rooms to connected collaborators.
+- The editor page sends local changes to the socket server and applies remote changes in the client.
+- Autosave writes the current document state back to PostgreSQL through the Next.js API.
+- Yjs packages are installed, but this README only claims the broadcast-and-persist flow that is implemented in the current code.
 
 ## Tech Stack
 
 | Category | Technology |
 |----------|------------|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
 | Editor | Tiptap (ProseMirror-based) |
@@ -26,42 +44,24 @@ A real-time collaborative document editor built with modern web technologies. Mu
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Client                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   React     │  │   Tiptap    │  │   Socket.io Client  │  │
-│  │   (Next.js) │  │   Editor    │  │   (Real-time sync)  │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘  │
-└─────────┼────────────────┼─────────────────────┼────────────┘
-          │                │                     │
-          │ HTTP           │ State               │ WebSocket
-          │                │ Updates             │
-          ▼                ▼                     ▼
-┌─────────────────┐                    ┌─────────────────────┐
-│  Next.js API    │                    │   Socket.io Server  │
-│  Routes         │                    │   (Port 3001)       │
-│  (/api/*)       │                    │                     │
-└────────┬────────┘                    └──────────┬──────────┘
-         │                                        │
-         │ Prisma                                 │ Broadcast
-         │                                        │
-         ▼                                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       PostgreSQL                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐ │
-│  │  Users   │  │Documents │  │  Shares  │  │   Versions   │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  A[Next.js client] --> B[Tiptap editor]
+  A --> C[Next.js API routes]
+  A --> D[Socket.io client]
+  D <--> E[Socket.io server]
+  C --> F[Prisma]
+  F --> G[(PostgreSQL)]
+  E --> A
 ```
 
 ### Real-Time Sync Flow
 
 1. User makes an edit in the Tiptap editor
-2. Change is sent to Socket.io server via WebSocket
-3. Server broadcasts the change to all connected clients
-4. Other clients receive and apply the update to their editor
-5. Changes are periodically persisted to PostgreSQL
+2. The client emits a `document-update` event over Socket.io
+3. The socket server broadcasts the new content to the rest of the room
+4. Other clients apply the remote content and update presence state
+5. The editor page autosaves the latest document state through the API
 
 ## Getting Started
 
@@ -69,13 +69,13 @@ A real-time collaborative document editor built with modern web technologies. Mu
 
 - Node.js 18+
 - PostgreSQL database (local or cloud like Supabase)
-- GitHub OAuth app for authentication
+- GitHub and Google OAuth apps if you want social sign-in
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/collab-editor.git
+git clone https://github.com/FelmonFekadu/collab-editor.git
 cd collab-editor
 ```
 
@@ -96,7 +96,10 @@ NEXTAUTH_SECRET="generate-with-openssl-rand-base64-32"
 NEXTAUTH_URL="http://localhost:3000"
 GITHUB_ID="your-github-client-id"
 GITHUB_SECRET="your-github-client-secret"
+GOOGLE_ID="your-google-client-id"
+GOOGLE_SECRET="your-google-client-secret"
 NEXT_PUBLIC_SOCKET_URL="http://localhost:3001"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
 5. Set up the database:
@@ -142,7 +145,7 @@ collab-editor/
 ### Why Tiptap?
 - Built on ProseMirror, battle-tested in production
 - Extensible architecture for custom functionality
-- First-class collaboration support via Yjs
+- Strong collaboration ecosystem with Yjs integrations available when deeper CRDT support is needed
 - Great DX with React bindings
 
 ### Why Socket.io?
@@ -155,29 +158,20 @@ collab-editor/
 - JSON columns for flexible content storage
 - Excellent performance with proper indexing
 
-## Interview Talking Points
+## Proof Of Implementation
 
-This project demonstrates:
+- Room join, document updates, and cursor movement are implemented in [`server/socket-server.ts`](server/socket-server.ts).
+- Debounced autosave and live/offline indicators are implemented in [`src/app/documents/[id]/page.tsx`](src/app/documents/%5Bid%5D/page.tsx).
+- Document CRUD is implemented in [`src/app/api/documents`](src/app/api/documents).
+- Auth providers and JWT session wiring live in [`src/lib/auth.ts`](src/lib/auth.ts).
+- Sharing and version tables are defined in [`prisma/schema.prisma`](prisma/schema.prisma).
 
-1. **Real-Time Systems**
-   - WebSocket-based communication
-   - Event broadcasting to multiple clients
-   - Handling concurrent connections
+## Current Limitations
 
-2. **System Design**
-   - Separation of HTTP and WebSocket servers
-   - Database schema design for collaborative features
-   - State synchronization strategies
-
-3. **Full-Stack Development**
-   - Next.js App Router with server components
-   - Type-safe API with TypeScript
-   - Modern React patterns (hooks, context)
-
-4. **Production Considerations**
-   - OAuth authentication flow
-   - Auto-save with debouncing
-   - Graceful handling of disconnections
+- Document room state is kept in memory on the socket server, so this is not yet a horizontally scaled collaboration backend.
+- Conflict handling is broadcast-based, not CRDT-based.
+- The versioning schema exists in Prisma, but the README does not claim a full version history UI because the current repo proof is stronger around live editing and autosave.
+- A recruiter-facing GIF or screenshot would still improve the first screen of this README.
 
 ## Deployment
 

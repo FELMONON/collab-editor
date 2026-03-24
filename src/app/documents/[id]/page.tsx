@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, useEffectEvent } from "react";
 import { ArrowLeft, Loader2, Users, Check, Cloud, Wifi, WifiOff } from "lucide-react";
 import { TiptapEditor } from "@/components/editor/tiptap-editor";
 import { useSocket } from "@/lib/socket/use-socket";
@@ -28,7 +28,6 @@ export default function DocumentPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [remoteContent, setRemoteContent] = useState<string | null>(null);
   const isLocalUpdate = useRef(false);
 
   // Memoize user object to prevent socket reconnection
@@ -37,15 +36,17 @@ export default function DocumentPage() {
     name: session?.user?.name || "Anonymous",
   }), [session?.user?.id, session?.user?.name]);
 
+  const handleRemoteContent = useCallback((newContent: string) => {
+    if (!isLocalUpdate.current) {
+      setContent(newContent);
+    }
+  }, []);
+
   // Socket connection for real-time collaboration
   const { connected, users, remoteCursors, sendUpdate, sendCursorPosition } = useSocket({
     documentId,
     user: socketUser,
-    onDocumentUpdate: useCallback((newContent: string) => {
-      if (!isLocalUpdate.current) {
-        setRemoteContent(newContent);
-      }
-    }, []),
+    onDocumentUpdate: handleRemoteContent,
   });
 
   // Track mouse movement and send cursor position
@@ -83,13 +84,7 @@ export default function DocumentPage() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    if (session?.user && documentId) {
-      fetchDocument();
-    }
-  }, [session, documentId]);
-
-  const fetchDocument = async () => {
+  const fetchDocument = useEffectEvent(async () => {
     const res = await fetch(`/api/documents/${documentId}`);
     if (res.ok) {
       const data = await res.json();
@@ -100,7 +95,13 @@ export default function DocumentPage() {
       router.push("/documents");
     }
     setLoading(false);
-  };
+  });
+
+  useEffect(() => {
+    if (session?.user && documentId) {
+      fetchDocument();
+    }
+  }, [documentId, session?.user]);
 
   const saveDocument = useCallback(async () => {
     if (!documentId) return;
@@ -126,14 +127,6 @@ export default function DocumentPage() {
       isLocalUpdate.current = false;
     }, 100);
   }, [sendUpdate]);
-
-  // Apply remote updates
-  useEffect(() => {
-    if (remoteContent !== null && !isLocalUpdate.current) {
-      setContent(remoteContent);
-      setRemoteContent(null);
-    }
-  }, [remoteContent]);
 
   // Auto-save on content change (debounced)
   useEffect(() => {
@@ -246,7 +239,7 @@ export default function DocumentPage() {
 
       {/* Editor with cursor overlay */}
       <main className="max-w-4xl mx-auto px-4 py-8 relative" ref={editorContainerRef}>
-        <RemoteCursors cursors={remoteCursors} containerRef={editorContainerRef} />
+        <RemoteCursors cursors={remoteCursors} />
         <TiptapEditor content={content} onUpdate={handleContentUpdate} />
       </main>
     </div>
