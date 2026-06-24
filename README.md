@@ -4,6 +4,9 @@ Real-time collaborative document editor with shared document rooms, presence, re
 
 **[Live demo](https://collab-editor-sand.vercel.app)**
 
+![Collab Editor — real-time collaborative editor](preview.jpg)
+
+
 ## What Is Live Today
 
 - document list and creation flow in [`src/app/documents/page.tsx`](src/app/documents/page.tsx) and [`src/app/api/documents/route.ts`](src/app/api/documents/route.ts)
